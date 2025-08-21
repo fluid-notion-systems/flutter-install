@@ -9,25 +9,20 @@ set -e
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Source common functions if available
-if [[ -f "$SCRIPT_DIR/common.sh" ]]; then
-    source "$SCRIPT_DIR/common.sh"
-else
-    # Fallback logging functions if common.sh not available
-    log_info() { echo "[INFO] $1"; }
-    log_success() { echo "[SUCCESS] $1"; }
-    log_warning() { echo "[WARNING] $1"; }
-    log_error() { echo "[ERROR] $1"; }
-    log_step() { echo "[STEP] $1"; }
-    command_exists() { command -v "$1" >/dev/null 2>&1; }
-    print_section() {
-        echo
-        echo "════════════════════════════════════════════════════════════════"
-        echo "  $1"
-        echo "════════════════════════════════════════════════════════════════"
-        echo
-    }
-fi
+# Define logging functions (bash 3.2 compatible)
+log_info() { echo "[INFO] $1"; }
+log_success() { echo "[SUCCESS] $1"; }
+log_warning() { echo "[WARNING] $1"; }
+log_error() { echo "[ERROR] $1"; }
+log_step() { echo "[STEP] $1"; }
+command_exists() { command -v "$1" >/dev/null 2>&1; }
+print_section() {
+    echo
+    echo "════════════════════════════════════════════════════════════════"
+    echo "  $1"
+    echo "════════════════════════════════════════════════════════════════"
+    echo
+}
 
 # Check if running on macOS
 if [[ "$(uname)" != "Darwin" ]]; then
@@ -134,23 +129,22 @@ install_homebrew() {
 
 # Function to install array of packages
 install_packages() {
-    local -a packages=("$@")
-    local failed_packages=()
+    local failed_packages=""
 
-    for package in "${packages[@]}"; do
+    for package in "$@"; do
         log_step "Installing $package..."
         if brew install "$package" 2>/dev/null; then
             log_success "$package installed"
         else
             log_warning "Failed to install $package"
-            failed_packages+=("$package")
+            failed_packages="$failed_packages $package"
         fi
     done
 
     # Report failed packages
-    if [[ ${#failed_packages[@]} -gt 0 ]]; then
+    if [[ -n "$failed_packages" ]]; then
         log_warning "Some packages failed to install:"
-        for pkg in "${failed_packages[@]}"; do
+        for pkg in $failed_packages; do
             echo "  - $pkg"
         done
     fi
@@ -158,23 +152,22 @@ install_packages() {
 
 # Function to install cask applications
 install_casks() {
-    local -a casks=("$@")
-    local failed_casks=()
+    local failed_casks=""
 
-    for cask in "${casks[@]}"; do
+    for cask in "$@"; do
         log_step "Installing $cask..."
         if brew install --cask "$cask" 2>/dev/null; then
             log_success "$cask installed"
         else
             log_warning "Failed to install $cask (might already be installed)"
-            failed_casks+=("$cask")
+            failed_casks="$failed_casks $cask"
         fi
     done
 
     # Report failed casks
-    if [[ ${#failed_casks[@]} -gt 0 ]]; then
+    if [[ -n "$failed_casks" ]]; then
         log_warning "Some applications failed to install:"
-        for cask in "${failed_casks[@]}"; do
+        for cask in $failed_casks; do
             echo "  - $cask"
         done
     fi
@@ -219,27 +212,27 @@ setup_shell_config
 case "$INSTALL_MODE" in
     "minimal")
         print_section "Installing Essential Tools"
-        install_packages "${ESSENTIAL_TOOLS[@]}"
+        install_packages $ESSENTIAL_TOOLS
         ;;
     "full")
         print_section "Installing Essential Tools"
-        install_packages "${ESSENTIAL_TOOLS[@]}"
+        install_packages $ESSENTIAL_TOOLS
 
         print_section "Installing Development Tools"
-        install_packages "${DEVELOPMENT_TOOLS[@]}"
+        install_packages $DEVELOPMENT_TOOLS
 
         print_section "Installing Developer Applications"
-        install_casks "${DEVELOPER_APPS[@]}"
+        install_casks $DEVELOPER_APPS
 
         print_section "Installing Optional Tools"
-        install_packages "${OPTIONAL_TOOLS[@]}"
+        install_packages $OPTIONAL_TOOLS
         ;;
     *)
         print_section "Installing Essential Tools"
-        install_packages "${ESSENTIAL_TOOLS[@]}"
+        install_packages $ESSENTIAL_TOOLS
 
         print_section "Installing Development Tools"
-        install_packages "${DEVELOPMENT_TOOLS[@]}"
+        install_packages $DEVELOPMENT_TOOLS
         ;;
 esac
 
