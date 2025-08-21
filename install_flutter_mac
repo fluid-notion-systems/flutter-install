@@ -1,9 +1,22 @@
 #!/bin/bash
 
 # Flutter Android & iOS Development Installation Script for macOS
-# Usage: ./install_flutter_mac
-# Set ANDROID_FLUTTER_HOME environment variable to specify base directory, defaults to $HOME/android-flutter
-# Set FLUTTER_VERSION environment variable to specify Flutter version, defaults to 3.24.3
+# Usage: ./install_flutter_mac [OPTIONS]
+#
+# Options:
+#   --simulator    Install iOS Simulator and related development tools
+#   --cocoapods    Install CocoaPods for iOS dependency management
+#   --help, -h     Show this help message
+#
+# Environment Variables:
+#   ANDROID_FLUTTER_HOME  Base directory for installation (default: current directory)
+#   FLUTTER_VERSION       Flutter version to install (default: from VERSIONS file)
+#
+# Examples:
+#   ./install_flutter_mac                    # Basic Flutter + Android setup
+#   ./install_flutter_mac --simulator        # Include iOS Simulator setup
+#   ./install_flutter_mac --cocoapods        # Include CocoaPods installation
+#   FLUTTER_VERSION=3.19.6 ./install_flutter_mac --simulator --cocoapods
 
 set -e  # Exit on any error
 
@@ -20,6 +33,54 @@ fi
 
 # Array to collect manual actions
 declare -a MANUAL_ACTIONS
+
+# Function to show help
+show_help() {
+    echo "Flutter Android & iOS Development Installation Script for macOS"
+    echo
+    echo "Usage: $0 [OPTIONS]"
+    echo
+    echo "Options:"
+    echo "  --simulator    Install iOS Simulator and related development tools"
+    echo "  --cocoapods    Install CocoaPods for iOS dependency management"
+    echo "  --help, -h     Show this help message"
+    echo
+    echo "Environment Variables:"
+    echo "  ANDROID_FLUTTER_HOME  Base directory for installation (default: current directory)"
+    echo "  FLUTTER_VERSION       Flutter version to install (default: from VERSIONS file)"
+    echo
+    echo "Examples:"
+    echo "  $0                    # Basic Flutter + Android setup"
+    echo "  $0 --simulator        # Include iOS Simulator setup"
+    echo "  $0 --cocoapods        # Include CocoaPods installation"
+    echo "  FLUTTER_VERSION=3.19.6 $0 --simulator --cocoapods"
+    echo
+    exit 0
+}
+
+# Parse command line arguments
+INSTALL_SIMULATOR=false
+INSTALL_COCOAPODS=false
+for arg in "$@"; do
+    case $arg in
+        --simulator)
+            INSTALL_SIMULATOR=true
+            shift
+            ;;
+        --cocoapods)
+            INSTALL_COCOAPODS=true
+            shift
+            ;;
+        --help|-h)
+            show_help
+            ;;
+        *)
+            echo "Unknown argument: $arg" >&2
+            echo "Use --help for usage information" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # Check if running as root
 check_not_root
@@ -182,31 +243,59 @@ if [[ -d "/Applications/Xcode.app" ]]; then
         log_warning "Xcode license may not be accepted"
         MANUAL_ACTIONS+=("Open Xcode and accept the license agreement")
     fi
+
+    # Install iOS Simulator if requested
+    if [[ "$INSTALL_SIMULATOR" == true ]]; then
+        print_section "Setting up iOS Simulator"
+        log_step "Checking iOS Simulator installation..."
+
+        # Check if iOS runtime is available
+        if xcrun simctl list runtimes | grep -q "iOS"; then
+            log_success "iOS Simulator runtime already available"
+        else
+            log_warning "iOS Simulator runtime not found"
+            MANUAL_ACTIONS+=("Open Xcode, go to Settings > Platforms, and install iOS Simulator")
+        fi
+
+        # Check for available iOS simulators
+        if xcrun simctl list devices | grep -q "iPhone"; then
+            log_success "iOS device simulators available"
+            log_info "Available iOS simulators:"
+            xcrun simctl list devices | grep "iPhone" | head -3
+        else
+            log_warning "No iOS device simulators found"
+            MANUAL_ACTIONS+=("Open Xcode and create iOS simulator devices if needed")
+        fi
+
+        # Install additional simulator tools
+        log_step "Installing iOS development tools..."
+        if command_exists ios-deploy; then
+            log_success "ios-deploy already installed"
+        else
+            log_step "Installing ios-deploy for device deployment..."
+            brew install ios-deploy
+            log_success "ios-deploy installed"
+        fi
+    fi
 else
     log_warning "Xcode is not installed"
-    MANUAL_ACTIONS+=("Install Xcode from the App Store (required for iOS development)")
-fi
-
-# Install iOS Simulator (if Xcode is present)
-if [[ -d "/Applications/Xcode.app" ]]; then
-    print_section "Setting up iOS Simulator"
-    log_step "Installing iOS Simulator..."
-    if xcrun simctl list devices | grep -q "iOS"; then
-        log_success "iOS Simulator already available"
+    if [[ "$INSTALL_SIMULATOR" == true ]]; then
+        MANUAL_ACTIONS+=("Install Xcode from the App Store (required for iOS Simulator)")
     else
-        log_warning "iOS Simulator may need to be installed through Xcode"
-        MANUAL_ACTIONS+=("Open Xcode, go to Preferences > Components, and install iOS Simulator")
+        MANUAL_ACTIONS+=("Install Xcode from the App Store (required for iOS development)")
     fi
 fi
 
-# Install CocoaPods for iOS dependencies
-print_section "Installing CocoaPods"
-if ! command_exists pod; then
-    log_step "Installing CocoaPods..."
-    sudo gem install cocoapods
-    log_success "CocoaPods installed"
-else
-    log_success "CocoaPods already installed"
+# Install CocoaPods for iOS dependencies (if requested)
+if [[ "$INSTALL_COCOAPODS" == true ]]; then
+    print_section "Installing CocoaPods"
+    if ! command_exists pod; then
+        log_step "Installing CocoaPods..."
+        sudo gem install cocoapods
+        log_success "CocoaPods installed"
+    else
+        log_success "CocoaPods already installed"
+    fi
 fi
 
 # Source shell configuration
@@ -228,7 +317,17 @@ echo "  2. Run: flutter doctor"
 echo "  3. Create your first app: flutter create my_app"
 echo "  4. For Android emulator support, run:"
 echo "     sdkmanager \"emulator\" \"system-images;android-${ANDROID_API_LEVEL};google_apis;x86_64\""
-echo "  5. For iOS development, ensure you have an Apple Developer account"
+if [[ "$INSTALL_SIMULATOR" == true ]]; then
+    echo "  5. Test iOS Simulator: open -a Simulator"
+    echo "  6. For iOS development, ensure you have an Apple Developer account"
+    else
+        echo "  5. For iOS development, ensure you have an Apple Developer account"
+        echo "  6. Re-run with --simulator flag to set up iOS Simulator"
+    fi
+
+    if [[ "$INSTALL_COCOAPODS" != true ]]; then
+        echo "  7. Re-run with --cocoapods flag to install CocoaPods for iOS dependencies"
+    fi
 
 # Additional iOS-specific recommendations
 echo
@@ -236,7 +335,11 @@ log_info "iOS Development Notes:"
 echo "  • iOS development requires a Mac with Xcode"
 echo "  • You'll need an Apple Developer account for device testing"
 echo "  • Simulator testing is free but device deployment requires paid account"
-echo "  • CocoaPods is used for iOS dependency management"
+if [[ "$INSTALL_COCOAPODS" == true ]]; then
+    echo "  • CocoaPods installed for iOS dependency management"
+else
+    echo "  • CocoaPods can be installed later with --cocoapods flag"
+fi
 
 # Print manual actions if any
 print_manual_actions "${MANUAL_ACTIONS[@]}"
