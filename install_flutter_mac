@@ -1,0 +1,244 @@
+#!/bin/bash
+
+# Flutter Android & iOS Development Installation Script for macOS
+# Usage: ./install_flutter_mac
+# Set ANDROID_FLUTTER_HOME environment variable to specify base directory, defaults to $HOME/android-flutter
+# Set FLUTTER_VERSION environment variable to specify Flutter version, defaults to 3.24.3
+
+set -e  # Exit on any error
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common functions
+if [[ -f "$SCRIPT_DIR/install_common.sh" ]]; then
+    source "$SCRIPT_DIR/install_common.sh"
+else
+    echo "Error: install_common.sh not found in $SCRIPT_DIR"
+    exit 1
+fi
+
+# Array to collect manual actions
+declare -a MANUAL_ACTIONS
+
+# Check if running as root
+check_not_root
+
+# Configuration
+if [[ -n "$FLUTTER_VERSION" ]]; then
+    log_info "Using specified Flutter version: $FLUTTER_VERSION"
+else
+    FLUTTER_VERSION="3.24.3"
+    log_info "Using default Flutter version: $FLUTTER_VERSION"
+fi
+
+FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_${FLUTTER_VERSION}-stable.zip"
+CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip"
+
+# Check and set base directory
+if [[ -n "$ANDROID_FLUTTER_HOME" ]]; then
+    log_info "Using existing ANDROID_FLUTTER_HOME: $ANDROID_FLUTTER_HOME"
+else
+    ANDROID_FLUTTER_HOME="$(pwd)"
+    log_info "ANDROID_FLUTTER_HOME not set, using current directory: $ANDROID_FLUTTER_HOME"
+fi
+
+# Set Android SDK and Flutter directories based on ANDROID_FLUTTER_HOME
+ANDROID_HOME="$ANDROID_FLUTTER_HOME/android"
+FLUTTER_HOME="$ANDROID_FLUTTER_HOME/flutter"
+
+# Detect Mac architecture
+ARCH=$(detect_mac_arch)
+log_info "Detected Mac architecture: $ARCH"
+
+print_section "Flutter Android & iOS Development Environment Installation for macOS"
+
+# Install Xcode Command Line Tools
+print_section "Installing Xcode Command Line Tools"
+if ! xcode-select -p >/dev/null 2>&1; then
+    log_step "Installing Xcode Command Line Tools..."
+    xcode-select --install
+    log_manual "Complete the Xcode Command Line Tools installation when prompted"
+    MANUAL_ACTIONS+=("Complete Xcode Command Line Tools installation dialog when it appears")
+else
+    log_success "Xcode Command Line Tools already installed"
+fi
+
+# Install/Update Homebrew
+print_section "Setting up Homebrew"
+if ! command_exists brew; then
+    log_step "Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+    # Add Homebrew to PATH for current session
+    if [[ "$ARCH" == "apple_silicon" ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    else
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    log_success "Homebrew installed"
+else
+    log_info "Homebrew already installed"
+    log_step "Updating Homebrew..."
+    brew update
+    log_success "Homebrew updated"
+fi
+
+# Install prerequisites
+print_section "Installing Prerequisites"
+log_step "Installing development tools..."
+brew install curl git unzip wget openjdk@17
+log_success "Prerequisites installed"
+
+# Set JAVA_HOME
+JAVA_HOME_PATH=$(get_java_home_path)
+if [[ -d "$JAVA_HOME_PATH" ]]; then
+    add_env_var "JAVA_HOME" "$JAVA_HOME_PATH"
+    export JAVA_HOME="$JAVA_HOME_PATH"
+    log_success "JAVA_HOME set to $JAVA_HOME_PATH"
+else
+    log_error "Java installation directory not found at $JAVA_HOME_PATH"
+    exit 1
+fi
+
+# Create development directory structure
+print_section "Setting up Development Directories"
+ensure_directory "$ANDROID_FLUTTER_HOME"
+ensure_directory "$ANDROID_HOME"
+ensure_directory "$ANDROID_FLUTTER_HOME/download"
+ensure_directory "$(dirname "$FLUTTER_HOME")"
+
+cd "$ANDROID_FLUTTER_HOME/download"
+
+# Download Flutter if not already present
+print_section "Installing Flutter SDK"
+if [[ -d "$FLUTTER_HOME" ]]; then
+    log_warning "Flutter directory already exists at $FLUTTER_HOME"
+    if confirm "Do you want to remove it and reinstall?"; then
+        rm -rf "$FLUTTER_HOME"
+        log_info "Removed existing Flutter installation"
+    else
+        log_info "Keeping existing Flutter installation"
+    fi
+fi
+
+if [[ ! -d "$FLUTTER_HOME" ]]; then
+    FLUTTER_ARCHIVE="flutter_macos_${FLUTTER_VERSION}-stable.zip"
+    download_file "$FLUTTER_URL" "$FLUTTER_ARCHIVE" "Flutter SDK v$FLUTTER_VERSION"
+
+    log_step "Extracting Flutter SDK..."
+    unzip -q "$FLUTTER_ARCHIVE"
+    mv flutter "$FLUTTER_HOME"
+    log_success "Flutter SDK extracted and moved to $FLUTTER_HOME"
+fi
+
+# Add Flutter to PATH
+add_to_path "$FLUTTER_HOME/bin"
+export PATH="$PATH:$FLUTTER_HOME/bin"
+
+# Set up Android SDK
+print_section "Setting up Android SDK"
+ensure_directory "$ANDROID_HOME"
+
+# Download Android Command Line Tools if not present
+if [[ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]]; then
+    cd "$ANDROID_FLUTTER_HOME/download"
+    CMDLINE_TOOLS_ARCHIVE="commandlinetools.zip"
+    download_file "$CMDLINE_TOOLS_URL" "$CMDLINE_TOOLS_ARCHIVE" "Android Command Line Tools"
+
+    log_step "Extracting Android Command Line Tools..."
+    unzip -q "$CMDLINE_TOOLS_ARCHIVE"
+    ensure_directory "$ANDROID_HOME/cmdline-tools/latest"
+    mv cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" 2>/dev/null || true
+    rm -rf cmdline-tools
+    log_success "Android Command Line Tools installed"
+else
+    log_info "Android Command Line Tools already present"
+fi
+
+# Set Android environment variables
+add_env_var "ANDROID_HOME" "$ANDROID_HOME"
+add_to_path "$ANDROID_HOME/cmdline-tools/latest/bin"
+add_to_path "$ANDROID_HOME/platform-tools"
+
+# Export for current session
+export ANDROID_HOME="$ANDROID_HOME"
+export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+
+# Install Android SDK components
+print_section "Installing Android SDK Components"
+log_step "Installing Android SDK components..."
+yes | sdkmanager --licenses >/dev/null 2>&1 || true
+sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+log_success "Android SDK components installed"
+
+# Check for Xcode installation
+print_section "Checking Xcode Installation"
+if [[ -d "/Applications/Xcode.app" ]]; then
+    log_success "Xcode is installed"
+
+    # Check Xcode license
+    if ! /usr/bin/xcrun simctl list >/dev/null 2>&1; then
+        log_warning "Xcode license may not be accepted"
+        MANUAL_ACTIONS+=("Open Xcode and accept the license agreement")
+    fi
+else
+    log_warning "Xcode is not installed"
+    MANUAL_ACTIONS+=("Install Xcode from the App Store (required for iOS development)")
+fi
+
+# Install iOS Simulator (if Xcode is present)
+if [[ -d "/Applications/Xcode.app" ]]; then
+    print_section "Setting up iOS Simulator"
+    log_step "Installing iOS Simulator..."
+    if xcrun simctl list devices | grep -q "iOS"; then
+        log_success "iOS Simulator already available"
+    else
+        log_warning "iOS Simulator may need to be installed through Xcode"
+        MANUAL_ACTIONS+=("Open Xcode, go to Preferences > Components, and install iOS Simulator")
+    fi
+fi
+
+# Install CocoaPods for iOS dependencies
+print_section "Installing CocoaPods"
+if ! command_exists pod; then
+    log_step "Installing CocoaPods..."
+    sudo gem install cocoapods
+    log_success "CocoaPods installed"
+else
+    log_success "CocoaPods already installed"
+fi
+
+# Source shell configuration
+source_shell_config
+
+print_section "Installation Complete!"
+
+# Print summary
+print_summary "$ANDROID_FLUTTER_HOME" "$FLUTTER_HOME" "$ANDROID_HOME" "$JAVA_HOME"
+
+# Run flutter doctor
+run_flutter_doctor
+
+# Print next steps
+print_section "Next Steps"
+log_info "Recommended next steps:"
+echo "  1. Restart your terminal or run: source $(get_shell_config)"
+echo "  2. Run: flutter doctor"
+echo "  3. Create your first app: flutter create my_app"
+echo "  4. For Android emulator support, run:"
+echo "     sdkmanager \"emulator\" \"system-images;android-34;google_apis;x86_64\""
+echo "  5. For iOS development, ensure you have an Apple Developer account"
+
+# Additional iOS-specific recommendations
+echo
+log_info "iOS Development Notes:"
+echo "  • iOS development requires a Mac with Xcode"
+echo "  • You'll need an Apple Developer account for device testing"
+echo "  • Simulator testing is free but device deployment requires paid account"
+echo "  • CocoaPods is used for iOS dependency management"
+
+# Print manual actions if any
+print_manual_actions "${MANUAL_ACTIONS[@]}"
+
+log_success "macOS Flutter development environment setup completed!"

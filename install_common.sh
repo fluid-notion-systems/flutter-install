@@ -1,0 +1,250 @@
+#!/bin/bash
+
+# Common functions for Flutter Android/iOS Development Installation Scripts
+# This file should be sourced by other installation scripts
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Logging functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_step() {
+    echo -e "${PURPLE}[STEP]${NC} $1"
+}
+
+log_manual() {
+    echo -e "${CYAN}[MANUAL ACTION REQUIRED]${NC} $1"
+}
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to detect operating system
+detect_os() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "linux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        echo "windows"
+    else
+        echo "unknown"
+    fi
+}
+
+# Function to detect shell and return appropriate config file
+get_shell_config() {
+    local os=$(detect_os)
+
+    if [[ "$os" == "macos" ]]; then
+        if [[ "$SHELL" == */zsh ]]; then
+            echo "$HOME/.zshrc"
+        else
+            echo "$HOME/.bash_profile"
+        fi
+    else
+        # Linux and others
+        if [[ "$SHELL" == */zsh ]]; then
+            echo "$HOME/.zshrc"
+        else
+            echo "$HOME/.bashrc"
+        fi
+    fi
+}
+
+# Function to add to PATH if not already present
+add_to_path() {
+    local new_path="$1"
+    local shell_rc=$(get_shell_config)
+
+    if [[ ! -f "$shell_rc" ]]; then
+        touch "$shell_rc"
+    fi
+
+    if ! grep -q "$new_path" "$shell_rc" 2>/dev/null; then
+        echo "export PATH=\"\$PATH:$new_path\"" >> "$shell_rc"
+        log_success "Added $new_path to PATH in $shell_rc"
+    else
+        log_info "$new_path already in PATH"
+    fi
+}
+
+# Function to add environment variable
+add_env_var() {
+    local var_name="$1"
+    local var_value="$2"
+    local shell_rc=$(get_shell_config)
+
+    if [[ ! -f "$shell_rc" ]]; then
+        touch "$shell_rc"
+    fi
+
+    if ! grep -q "export $var_name=" "$shell_rc" 2>/dev/null; then
+        echo "export $var_name=\"$var_value\"" >> "$shell_rc"
+        log_success "Added $var_name environment variable to $shell_rc"
+    else
+        log_info "$var_name environment variable already exists in $shell_rc"
+    fi
+}
+
+# Function to source shell config
+source_shell_config() {
+    local shell_rc=$(get_shell_config)
+    source "$shell_rc" 2>/dev/null || true
+    log_info "Sourced $shell_rc"
+}
+
+# Function to check if running as root
+check_not_root() {
+    if [[ $EUID -eq 0 ]]; then
+        log_error "This script should not be run as root for security reasons."
+        exit 1
+    fi
+}
+
+# Function to create directory if it doesn't exist
+ensure_directory() {
+    local dir="$1"
+    if [[ ! -d "$dir" ]]; then
+        mkdir -p "$dir"
+        log_success "Created directory: $dir"
+    else
+        log_info "Directory already exists: $dir"
+    fi
+}
+
+# Function to download file with resume capability
+download_file() {
+    local url="$1"
+    local output="$2"
+    local description="$3"
+
+    if [[ -f "$output" ]]; then
+        log_info "$description already exists, verifying..."
+    else
+        log_info "Downloading $description..."
+    fi
+
+    wget -c -O "$output" "$url"
+    log_success "$description downloaded"
+}
+
+# Function to prompt user for yes/no confirmation
+confirm() {
+    local message="$1"
+    local default="${2:-N}"
+
+    if [[ "$default" == "Y" || "$default" == "y" ]]; then
+        read -p "$message (Y/n): " -n 1 -r
+        echo
+        [[ $REPLY =~ ^[Nn]$ ]] && return 1 || return 0
+    else
+        read -p "$message (y/N): " -n 1 -r
+        echo
+        [[ $REPLY =~ ^[Yy]$ ]] && return 0 || return 1
+    fi
+}
+
+# Function to print section header
+print_section() {
+    local title="$1"
+    echo
+    echo "════════════════════════════════════════════════════════════════"
+    echo "  $title"
+    echo "════════════════════════════════════════════════════════════════"
+    echo
+}
+
+# Function to print manual actions summary
+print_manual_actions() {
+    local -a actions=("$@")
+
+    if [[ ${#actions[@]} -gt 0 ]]; then
+        print_section "MANUAL ACTIONS REQUIRED"
+        log_warning "The following actions require manual intervention:"
+        echo
+        for i in "${!actions[@]}"; do
+            echo -e "  ${CYAN}$((i+1)).${NC} ${actions[i]}"
+        done
+        echo
+    fi
+}
+
+# Function to print installation summary
+print_summary() {
+    local base_dir="$1"
+    local flutter_home="$2"
+    local android_home="$3"
+    local java_home="$4"
+
+    print_section "INSTALLATION SUMMARY"
+    echo "  Base Directory: $base_dir"
+    echo "  Flutter SDK: $flutter_home"
+    echo "  Android SDK: $android_home"
+    echo "  Java: $java_home"
+    echo
+}
+
+# Function to detect Mac architecture
+detect_mac_arch() {
+    local arch=$(uname -m)
+    if [[ "$arch" == "arm64" ]]; then
+        echo "apple_silicon"
+    elif [[ "$arch" == "x86_64" ]]; then
+        echo "intel"
+    else
+        echo "unknown"
+    fi
+}
+
+# Function to get Java home path based on OS and architecture
+get_java_home_path() {
+    local os=$(detect_os)
+
+    if [[ "$os" == "macos" ]]; then
+        local arch=$(detect_mac_arch)
+        if [[ "$arch" == "apple_silicon" ]]; then
+            echo "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+        else
+            echo "/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+        fi
+    else
+        echo "/usr/lib/jvm/java-17-openjdk-amd64"
+    fi
+}
+
+# Function to run flutter doctor
+run_flutter_doctor() {
+    if command_exists flutter; then
+        echo
+        log_info "Running Flutter doctor to verify installation..."
+        echo
+        flutter doctor
+    else
+        log_warning "Flutter command not found in current session. Please restart your terminal and run:"
+        echo "  flutter doctor"
+    fi
+}
