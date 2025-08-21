@@ -3,6 +3,14 @@
 # Common functions and version management for Flutter Android/iOS Development Installation Scripts
 # This file should be sourced by other installation scripts
 
+# Check for bash version 4+ (required for associative arrays)
+if [[ ${BASH_VERSION%%.*} -lt 4 ]]; then
+    echo "Error: Bash 4.0 or higher is required for associative arrays" >&2
+    echo "Current version: $BASH_VERSION" >&2
+    echo "Please upgrade bash or use a system with bash 4+" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 # Get the directory where this script is located
 COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSIONS_FILE="$COMMON_SCRIPT_DIR/VERSIONS"

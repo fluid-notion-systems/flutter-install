@@ -1,0 +1,296 @@
+#!/bin/bash
+
+# Homebrew Setup Script for macOS Development
+# Installs Homebrew and essential development tools
+# Usage: ./setup_homebrew [--minimal] [--full]
+
+set -e
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common functions if available
+if [[ -f "$SCRIPT_DIR/common.sh" ]]; then
+    source "$SCRIPT_DIR/common.sh"
+else
+    # Fallback logging functions if common.sh not available
+    log_info() { echo "[INFO] $1"; }
+    log_success() { echo "[SUCCESS] $1"; }
+    log_warning() { echo "[WARNING] $1"; }
+    log_error() { echo "[ERROR] $1"; }
+    log_step() { echo "[STEP] $1"; }
+    command_exists() { command -v "$1" >/dev/null 2>&1; }
+    print_section() {
+        echo
+        echo "════════════════════════════════════════════════════════════════"
+        echo "  $1"
+        echo "════════════════════════════════════════════════════════════════"
+        echo
+    }
+fi
+
+# Check if running on macOS
+if [[ "$(uname)" != "Darwin" ]]; then
+    log_error "This script is designed for macOS only"
+    exit 1
+fi
+
+# Configuration arrays
+ESSENTIAL_TOOLS=(
+    "bash"              # Modern bash (5.x vs system 3.2)
+    "git"               # Latest git
+    "curl"              # Modern curl
+    "wget"              # Download utility
+    "unzip"             # Archive utility
+    "jq"                # JSON processor
+    "tree"              # Directory tree viewer
+)
+
+DEVELOPMENT_TOOLS=(
+    "node"              # Node.js
+    "python@3.11"       # Python 3.11
+    "openjdk@17"        # Java 17
+    "maven"             # Java build tool
+    "gradle"            # Java/Android build tool
+    "cocoapods"         # iOS dependency manager
+    "ios-deploy"        # iOS device deployment
+    "fastlane"          # Mobile app automation
+)
+
+DEVELOPER_APPS=(
+    "visual-studio-code"    # Code editor
+    "iterm2"               # Better terminal
+    "docker"               # Containerization
+    "postman"              # API testing
+    "sourcetree"           # Git GUI
+    "android-studio"       # Android IDE
+)
+
+OPTIONAL_TOOLS=(
+    "fish"              # Alternative shell
+    "zsh-completions"   # Better zsh completions
+    "gh"                # GitHub CLI
+    "hub"               # GitHub utilities
+    "yarn"              # Alternative npm
+    "rbenv"             # Ruby version manager
+    "pyenv"             # Python version manager
+    "nvm"               # Node version manager
+)
+
+# Parse command line arguments
+INSTALL_MODE="default"
+for arg in "$@"; do
+    case $arg in
+        --minimal)
+            INSTALL_MODE="minimal"
+            shift
+            ;;
+        --full)
+            INSTALL_MODE="full"
+            shift
+            ;;
+        --help|-h)
+            echo "Homebrew Setup Script for macOS Development"
+            echo
+            echo "Usage: $0 [OPTIONS]"
+            echo
+            echo "Options:"
+            echo "  --minimal    Install only essential tools"
+            echo "  --full       Install everything (essential + development + apps + optional)"
+            echo "  --help, -h   Show this help message"
+            echo
+            echo "Default: Installs essential + development tools"
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $arg" >&2
+            echo "Use --help for usage information" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Function to install Homebrew
+install_homebrew() {
+    if command_exists brew; then
+        log_success "Homebrew already installed"
+        log_step "Updating Homebrew..."
+        brew update
+        log_success "Homebrew updated"
+    else
+        log_step "Installing Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+        # Add Homebrew to PATH for current session
+        if [[ -f "/opt/homebrew/bin/brew" ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [[ -f "/usr/local/bin/brew" ]]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+
+        log_success "Homebrew installed"
+    fi
+}
+
+# Function to install array of packages
+install_packages() {
+    local -a packages=("$@")
+    local failed_packages=()
+
+    for package in "${packages[@]}"; do
+        log_step "Installing $package..."
+        if brew install "$package" 2>/dev/null; then
+            log_success "$package installed"
+        else
+            log_warning "Failed to install $package"
+            failed_packages+=("$package")
+        fi
+    done
+
+    # Report failed packages
+    if [[ ${#failed_packages[@]} -gt 0 ]]; then
+        log_warning "Some packages failed to install:"
+        for pkg in "${failed_packages[@]}"; do
+            echo "  - $pkg"
+        done
+    fi
+}
+
+# Function to install cask applications
+install_casks() {
+    local -a casks=("$@")
+    local failed_casks=()
+
+    for cask in "${casks[@]}"; do
+        log_step "Installing $cask..."
+        if brew install --cask "$cask" 2>/dev/null; then
+            log_success "$cask installed"
+        else
+            log_warning "Failed to install $cask (might already be installed)"
+            failed_casks+=("$cask")
+        fi
+    done
+
+    # Report failed casks
+    if [[ ${#failed_casks[@]} -gt 0 ]]; then
+        log_warning "Some applications failed to install:"
+        for cask in "${failed_casks[@]}"; do
+            echo "  - $cask"
+        done
+    fi
+}
+
+# Function to setup shell configuration
+setup_shell_config() {
+    local shell_config
+    if [[ "$SHELL" == */zsh ]]; then
+        shell_config="$HOME/.zshrc"
+    else
+        shell_config="$HOME/.bash_profile"
+    fi
+
+    # Add Homebrew to PATH if not already present
+    local homebrew_path
+    if [[ -d "/opt/homebrew" ]]; then
+        homebrew_path="/opt/homebrew/bin"
+    else
+        homebrew_path="/usr/local/bin"
+    fi
+
+    if ! grep -q "$homebrew_path" "$shell_config" 2>/dev/null; then
+        echo "export PATH=\"$homebrew_path:\$PATH\"" >> "$shell_config"
+        log_success "Added Homebrew to PATH in $shell_config"
+    fi
+}
+
+# Main installation
+print_section "Homebrew Development Environment Setup"
+
+log_info "Installation mode: $INSTALL_MODE"
+echo
+
+# Install Homebrew
+install_homebrew
+
+# Setup shell configuration
+setup_shell_config
+
+# Install packages based on mode
+case "$INSTALL_MODE" in
+    "minimal")
+        print_section "Installing Essential Tools"
+        install_packages "${ESSENTIAL_TOOLS[@]}"
+        ;;
+    "full")
+        print_section "Installing Essential Tools"
+        install_packages "${ESSENTIAL_TOOLS[@]}"
+
+        print_section "Installing Development Tools"
+        install_packages "${DEVELOPMENT_TOOLS[@]}"
+
+        print_section "Installing Developer Applications"
+        install_casks "${DEVELOPER_APPS[@]}"
+
+        print_section "Installing Optional Tools"
+        install_packages "${OPTIONAL_TOOLS[@]}"
+        ;;
+    *)
+        print_section "Installing Essential Tools"
+        install_packages "${ESSENTIAL_TOOLS[@]}"
+
+        print_section "Installing Development Tools"
+        install_packages "${DEVELOPMENT_TOOLS[@]}"
+        ;;
+esac
+
+# Final setup
+print_section "Final Setup"
+
+# Update bash version check
+if command_exists bash; then
+    new_bash_version=$(bash --version | head -1 | grep -o '[0-9]\+\.[0-9]\+')
+    log_success "Bash updated to version $new_bash_version"
+fi
+
+# Run brew doctor
+log_step "Running brew doctor..."
+if brew doctor >/dev/null 2>&1; then
+    log_success "Homebrew installation is healthy"
+else
+    log_warning "brew doctor found some issues (this is often normal)"
+fi
+
+print_section "Installation Complete!"
+
+log_info "What was installed:"
+case "$INSTALL_MODE" in
+    "minimal")
+        echo "  ✅ Essential development tools only"
+        ;;
+    "full")
+        echo "  ✅ Essential tools"
+        echo "  ✅ Development tools"
+        echo "  ✅ Developer applications"
+        echo "  ✅ Optional utilities"
+        ;;
+    *)
+        echo "  ✅ Essential tools"
+        echo "  ✅ Development tools"
+        ;;
+esac
+
+echo
+log_info "Next steps:"
+echo "  1. Restart your terminal or run: source ~/.zshrc (or ~/.bash_profile)"
+echo "  2. Verify bash version: bash --version"
+echo "  3. Run Flutter installer: ./install_flutter_mac"
+
+echo
+log_info "Useful commands:"
+echo "  brew list                    # Show installed packages"
+echo "  brew outdated               # Show packages with updates"
+echo "  brew upgrade                # Update all packages"
+echo "  brew cleanup                # Remove old versions"
+
+echo
+log_success "Homebrew setup completed! Your development environment is ready."
