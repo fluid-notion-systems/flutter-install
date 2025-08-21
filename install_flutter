@@ -7,6 +7,15 @@
 
 set -e  # Exit on any error
 
+# Check for bash version 4+ (required for associative arrays in common.sh)
+if [[ ${BASH_VERSION%%.*} -lt 4 ]]; then
+    echo "Error: Bash 4.0 or higher is required" >&2
+    echo "Current version: $BASH_VERSION" >&2
+    echo "Please install modern bash: sudo apt install bash" >&2
+    echo "Then restart your terminal and try again" >&2
+    exit 1
+fi
+
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

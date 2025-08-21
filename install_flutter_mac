@@ -20,6 +20,15 @@
 
 set -e  # Exit on any error
 
+# Check for bash version 4+ (required for associative arrays in common.sh)
+if [[ ${BASH_VERSION%%.*} -lt 4 ]]; then
+    echo "Error: Bash 4.0 or higher is required" >&2
+    echo "Current version: $BASH_VERSION" >&2
+    echo "Please run: ./setup_homebrew to install modern bash" >&2
+    echo "Then restart your terminal and try again" >&2
+    exit 1
+fi
+
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -125,24 +134,15 @@ else
     log_success "Xcode Command Line Tools already installed"
 fi
 
-# Install/Update Homebrew
-print_section "Setting up Homebrew"
+# Check Homebrew is available
+print_section "Checking Homebrew"
 if ! command_exists brew; then
-    log_step "Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-    # Add Homebrew to PATH for current session
-    if [[ "$ARCH" == "apple_silicon" ]]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-    else
-        eval "$(/usr/local/bin/brew shellenv)"
-    fi
-    log_success "Homebrew installed"
+    log_error "Homebrew not found! Please install Homebrew first:"
+    echo "  Run: ./setup_homebrew"
+    echo "  Or visit: https://brew.sh"
+    exit 1
 else
-    log_info "Homebrew already installed"
-    log_step "Updating Homebrew..."
-    brew update
-    log_success "Homebrew updated"
+    log_success "Homebrew found"
 fi
 
 # Install prerequisites
@@ -320,14 +320,14 @@ echo "     sdkmanager \"emulator\" \"system-images;android-${ANDROID_API_LEVEL};
 if [[ "$INSTALL_SIMULATOR" == true ]]; then
     echo "  5. Test iOS Simulator: open -a Simulator"
     echo "  6. For iOS development, ensure you have an Apple Developer account"
-    else
-        echo "  5. For iOS development, ensure you have an Apple Developer account"
-        echo "  6. Re-run with --simulator flag to set up iOS Simulator"
-    fi
+else
+    echo "  5. For iOS development, ensure you have an Apple Developer account"
+    echo "  6. Re-run with --simulator flag to set up iOS Simulator"
+fi
 
-    if [[ "$INSTALL_COCOAPODS" != true ]]; then
-        echo "  7. Re-run with --cocoapods flag to install CocoaPods for iOS dependencies"
-    fi
+if [[ "$INSTALL_COCOAPODS" != true ]]; then
+    echo "  7. Re-run with --cocoapods flag to install CocoaPods for iOS dependencies"
+fi
 
 # Additional iOS-specific recommendations
 echo
