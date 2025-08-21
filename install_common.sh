@@ -2,6 +2,8 @@
 
 # Common functions for Flutter Android/iOS Development Installation Scripts
 # This file should be sourced by other installation scripts
+# Default Flutter version
+DEFAULT_FLUTTER_VERSION="3.35.1"
 
 # Colors for output
 RED='\033[0;31m'

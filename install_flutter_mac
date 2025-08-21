@@ -28,7 +28,7 @@ check_not_root
 if [[ -n "$FLUTTER_VERSION" ]]; then
     log_info "Using specified Flutter version: $FLUTTER_VERSION"
 else
-    FLUTTER_VERSION="3.24.3"
+    FLUTTER_VERSION="$DEFAULT_FLUTTER_VERSION"
     log_info "Using default Flutter version: $FLUTTER_VERSION"
 fi
 
