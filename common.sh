@@ -1,9 +1,123 @@
 #!/bin/bash
 
-# Common functions for Flutter Android/iOS Development Installation Scripts
+# Common functions and version management for Flutter Android/iOS Development Installation Scripts
 # This file should be sourced by other installation scripts
-# Default Flutter version
-DEFAULT_FLUTTER_VERSION="3.35.1"
+
+# Get the directory where this script is located
+COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSIONS_FILE="$COMMON_SCRIPT_DIR/VERSIONS"
+
+# Associative array to store versions
+declare -A VERSIONS
+
+# Function to load versions from VERSIONS file
+load_versions() {
+    if [[ ! -f "$VERSIONS_FILE" ]]; then
+        echo "Error: VERSIONS file not found at $VERSIONS_FILE" >&2
+        return 1
+    fi
+
+    # Clear existing versions
+    VERSIONS=()
+
+    # Read versions from file, skipping comments and empty lines
+    while IFS='=' read -r key value; do
+        # Skip comments and empty lines
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+
+        # Remove leading/trailing whitespace
+        key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+        # Store in associative array
+        VERSIONS["$key"]="$value"
+    done < "$VERSIONS_FILE"
+}
+
+# Function to get version by key
+get_version() {
+    local key="$1"
+    echo "${VERSIONS[$key]}"
+}
+
+# Function to set version by key (updates VERSIONS file)
+set_version() {
+    local key="$1"
+    local value="$2"
+
+    if [[ ! -f "$VERSIONS_FILE" ]]; then
+        echo "Error: VERSIONS file not found at $VERSIONS_FILE" >&2
+        return 1
+    fi
+
+    # Update in memory
+    VERSIONS["$key"]="$value"
+
+    # Update in file
+    if grep -q "^$key=" "$VERSIONS_FILE"; then
+        # Key exists, update it
+        sed -i "s/^$key=.*/$key=$value/" "$VERSIONS_FILE"
+    else
+        # Key doesn't exist, add it (before metadata section)
+        sed -i "/^# Metadata/i $key=$value" "$VERSIONS_FILE"
+    fi
+}
+
+# Function to list all versions
+list_versions() {
+    for key in "${!VERSIONS[@]}"; do
+        echo "$key=${VERSIONS[$key]}"
+    done | sort
+}
+
+# Function to print formatted version information
+print_versions() {
+    echo "Current version configuration:"
+    echo "  Flutter: ${VERSIONS[FLUTTER]}"
+    echo "  Android API Level: ${VERSIONS[ANDROID_API]}"
+    echo "  Android Build Tools: ${VERSIONS[BUILD_TOOLS]}"
+    echo "  Android Command Line Tools: ${VERSIONS[CMDLINE_TOOLS]}"
+    echo "  Java: ${VERSIONS[JAVA]}"
+    echo "  CocoaPods: ${VERSIONS[COCOAPODS]}"
+    echo ""
+    echo "Last updated: ${VERSIONS[LAST_UPDATED]}"
+    echo "Updated by: ${VERSIONS[UPDATED_BY]}"
+}
+
+# Function to update metadata in VERSIONS file
+update_metadata() {
+    local updated_by="${1:-script}"
+    local timestamp=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+    set_version "LAST_UPDATED" "$timestamp"
+    set_version "UPDATED_BY" "$updated_by"
+}
+
+# Load versions when this script is sourced
+load_versions
+
+# Set backwards compatibility variables if VERSIONS loaded successfully
+if [[ ${#VERSIONS[@]} -gt 0 ]]; then
+    DEFAULT_FLUTTER_VERSION="${VERSIONS[FLUTTER]}"
+    ANDROID_API_LEVEL="${VERSIONS[ANDROID_API]}"
+    BUILD_TOOLS_VERSION="${VERSIONS[BUILD_TOOLS]}"
+    CMDLINE_TOOLS_VERSION="${VERSIONS[CMDLINE_TOOLS]}"
+    JAVA_VERSION="${VERSIONS[JAVA]}"
+    COCOAPODS_VERSION="${VERSIONS[COCOAPODS]}"
+else
+    # Fallback versions if VERSIONS file doesn't exist or failed to load
+    DEFAULT_FLUTTER_VERSION="3.35.1"
+    ANDROID_API_LEVEL="34"
+    BUILD_TOOLS_VERSION="34.0.0"
+    CMDLINE_TOOLS_VERSION="11076708"
+    JAVA_VERSION="17"
+    COCOAPODS_VERSION="latest"
+fi
+
+# Base URLs for downloads
+FLUTTER_BASE_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable"
+CMDLINE_TOOLS_BASE_URL="https://dl.google.com/android/repository"
 
 # Colors for output
 RED='\033[0;31m'
@@ -238,6 +352,34 @@ get_java_home_path() {
     fi
 }
 
+# Function to get Flutter download URL based on OS
+get_flutter_url() {
+    local os=$(detect_os)
+    local version="$1"
+
+    if [[ "$os" == "macos" ]]; then
+        echo "${FLUTTER_BASE_URL}/macos/flutter_macos_${version}-stable.zip"
+    else
+        echo "${FLUTTER_BASE_URL}/linux/flutter_linux_${version}-stable.tar.xz"
+    fi
+}
+
+# Function to get Android Command Line Tools URL based on OS
+get_cmdline_tools_url() {
+    local os=$(detect_os)
+
+    if [[ "$os" == "macos" ]]; then
+        echo "${CMDLINE_TOOLS_BASE_URL}/commandlinetools-mac-${CMDLINE_TOOLS_VERSION}_latest.zip"
+    else
+        echo "${CMDLINE_TOOLS_BASE_URL}/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip"
+    fi
+}
+
+# Function to get Android SDK components list
+get_android_sdk_components() {
+    echo "platform-tools platforms;android-${ANDROID_API_LEVEL} build-tools;${BUILD_TOOLS_VERSION}"
+}
+
 # Function to run flutter doctor
 run_flutter_doctor() {
     if command_exists flutter; then
@@ -249,4 +391,14 @@ run_flutter_doctor() {
         log_warning "Flutter command not found in current session. Please restart your terminal and run:"
         echo "  flutter doctor"
     fi
+}
+
+# Function to export versions as environment variables (backwards compatibility)
+export_versions() {
+    export DEFAULT_FLUTTER_VERSION="${VERSIONS[FLUTTER]}"
+    export ANDROID_API_LEVEL="${VERSIONS[ANDROID_API]}"
+    export BUILD_TOOLS_VERSION="${VERSIONS[BUILD_TOOLS]}"
+    export CMDLINE_TOOLS_VERSION="${VERSIONS[CMDLINE_TOOLS]}"
+    export JAVA_VERSION="${VERSIONS[JAVA]}"
+    export COCOAPODS_VERSION="${VERSIONS[COCOAPODS]}"
 }

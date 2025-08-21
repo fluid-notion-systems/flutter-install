@@ -1,0 +1,307 @@
+#!/bin/bash
+
+# Version management CLI script for Flutter Android/iOS Development Installation
+# This script provides a command-line interface to manage the VERSIONS file
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common functions
+if [[ -f "$SCRIPT_DIR/common.sh" ]]; then
+    source "$SCRIPT_DIR/common.sh"
+else
+    echo "Error: common.sh not found in $SCRIPT_DIR"
+    exit 1
+fi
+
+# Show usage information
+show_usage() {
+    echo "Usage: $0 [COMMAND] [ARGS...]"
+    echo ""
+    echo "Version management CLI for Flutter development environment"
+    echo ""
+    echo "Commands:"
+    echo "  show            Show formatted version information (default)"
+    echo "  list            List all versions in KEY=VALUE format"
+    echo "  get <KEY>       Get specific version by key"
+    echo "  set <KEY> <VAL> Set specific version by key"
+    echo "  export          Export versions as environment variables"
+    echo "  reload          Reload versions from VERSIONS file"
+    echo "  update [--yes]  Check for and update to latest versions"
+    echo "  help            Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                    # Show formatted version info"
+    echo "  $0 get FLUTTER        # Get Flutter version"
+    echo "  $0 set FLUTTER 3.37.0 # Set Flutter version"
+    echo "  $0 list               # List all KEY=VALUE pairs"
+    echo "  $0 update             # Check for updates interactively"
+    echo "  $0 update --yes       # Auto-update without prompting"
+    echo ""
+    echo "Available version keys: ${!VERSIONS[*]}"
+}
+
+# Function to get latest Flutter version from GitHub API
+get_latest_flutter_version() {
+    log_check() { echo -e "${PURPLE}[CHECK]${NC} $1"; }
+    log_check "Checking latest Flutter version..."
+
+    if command_exists curl; then
+        local flutter_version=$(curl -s "https://api.github.com/repos/flutter/flutter/releases/latest" | \
+            grep '"tag_name":' | \
+            sed -E 's/.*"([^"]+)".*/\1/')
+
+        if [[ -n "$flutter_version" && "$flutter_version" != "null" ]]; then
+            echo "$flutter_version"
+        else
+            log_error "Failed to fetch Flutter version from GitHub API"
+            return 1
+        fi
+    else
+        log_error "curl not found - cannot check Flutter version"
+        return 1
+    fi
+}
+
+# Function to get latest Android API level
+get_latest_android_api() {
+    log_check() { echo -e "${PURPLE}[CHECK]${NC} $1"; }
+    log_check "Checking latest Android API level..."
+    # For now, return current stable API level (manually verified)
+    echo "34"
+}
+
+# Function to get latest build tools version
+get_latest_build_tools_version() {
+    local api_level=$(get_latest_android_api)
+    echo "${api_level}.0.0"
+}
+
+# Function to get latest command line tools version
+get_latest_cmdline_tools_version() {
+    # Return current known version (manually verified)
+    echo "11076708"
+}
+
+# Function to backup current versions file
+backup_versions_file() {
+    if [[ -f "$VERSIONS_FILE" ]]; then
+        local backup_file="${VERSIONS_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$VERSIONS_FILE" "$backup_file"
+        log_success "Backed up current versions to: $backup_file"
+    fi
+}
+
+# Function to update versions file
+update_versions_file() {
+    local new_flutter_version="$1"
+    local new_api_level="$2"
+    local new_build_tools_version="$3"
+    local new_cmdline_tools_version="$4"
+
+    log_info "Updating VERSIONS file..."
+
+    cat > "$VERSIONS_FILE" << EOF
+# Version configuration file for Flutter Android/iOS Development Installation Scripts
+# Format: KEY=VALUE
+# This file is updated by the versions script
+
+FLUTTER=$new_flutter_version
+ANDROID_API=$new_api_level
+BUILD_TOOLS=$new_build_tools_version
+CMDLINE_TOOLS=$new_cmdline_tools_version
+JAVA=17
+COCOAPODS=latest
+
+# Metadata
+LAST_UPDATED=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+UPDATED_BY=versions --update
+
+# Version check URLs
+FLUTTER_RELEASES_URL=https://api.github.com/repos/flutter/flutter/releases
+ANDROID_API_VERSIONS_URL=https://developer.android.com/studio/releases/platforms
+CMDLINE_TOOLS_DOWNLOAD_URL=https://developer.android.com/studio#cmdline-tools
+EOF
+
+    log_success "Updated VERSIONS file"
+}
+
+# Function to compare versions
+compare_versions() {
+    local current="$1"
+    local latest="$2"
+    local component="$3"
+
+    if [[ "$current" != "$latest" ]]; then
+        log_warning "$component version changed: $current -> $latest"
+        return 0  # Versions differ
+    else
+        log_info "$component version unchanged: $current"
+        return 1  # Versions same
+    fi
+}
+
+# Function to check for and apply updates
+check_and_update_versions() {
+    local auto_yes="$1"
+
+    print_section "Flutter & Android SDK Version Updates"
+
+    echo "Current versions:"
+    print_versions
+    echo
+
+    log_info "Checking for version updates..."
+    echo
+
+    local updates_available=false
+
+    # Check Flutter version
+    local latest_flutter=$(get_latest_flutter_version)
+    if [[ $? -eq 0 ]] && compare_versions "${VERSIONS[FLUTTER]}" "$latest_flutter" "Flutter"; then
+        updates_available=true
+        NEW_FLUTTER_VERSION="$latest_flutter"
+    else
+        NEW_FLUTTER_VERSION="${VERSIONS[FLUTTER]}"
+    fi
+
+    # Check Android API level
+    local latest_api=$(get_latest_android_api)
+    if compare_versions "${VERSIONS[ANDROID_API]}" "$latest_api" "Android API Level"; then
+        updates_available=true
+        NEW_API_LEVEL="$latest_api"
+    else
+        NEW_API_LEVEL="${VERSIONS[ANDROID_API]}"
+    fi
+
+    # Check Build Tools version
+    local latest_build_tools=$(get_latest_build_tools_version)
+    if compare_versions "${VERSIONS[BUILD_TOOLS]}" "$latest_build_tools" "Build Tools"; then
+        updates_available=true
+        NEW_BUILD_TOOLS_VERSION="$latest_build_tools"
+    else
+        NEW_BUILD_TOOLS_VERSION="${VERSIONS[BUILD_TOOLS]}"
+    fi
+
+    # Check Command Line Tools version
+    local latest_cmdline_tools=$(get_latest_cmdline_tools_version)
+    if compare_versions "${VERSIONS[CMDLINE_TOOLS]}" "$latest_cmdline_tools" "Command Line Tools"; then
+        updates_available=true
+        NEW_CMDLINE_TOOLS_VERSION="$latest_cmdline_tools"
+    else
+        NEW_CMDLINE_TOOLS_VERSION="${VERSIONS[CMDLINE_TOOLS]}"
+    fi
+
+    echo
+
+    # Apply updates if available
+    if [[ "$updates_available" == true ]]; then
+        log_info "Updates available!"
+
+        # Ask for confirmation unless --yes flag is provided
+        if [[ "$auto_yes" == "true" ]]; then
+            update_file=true
+        else
+            read -p "Do you want to update VERSIONS file? (y/N): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                update_file=true
+            else
+                update_file=false
+            fi
+        fi
+
+        if [[ "$update_file" == true ]]; then
+            backup_versions_file
+            update_versions_file "$NEW_FLUTTER_VERSION" "$NEW_API_LEVEL" "$NEW_BUILD_TOOLS_VERSION" "$NEW_CMDLINE_TOOLS_VERSION"
+
+            echo
+            log_success "Versions updated successfully!"
+            echo
+            log_info "New configuration:"
+            load_versions
+            print_versions
+        else
+            log_info "No changes made to VERSIONS file"
+        fi
+    else
+        log_success "All versions are up to date!"
+    fi
+
+    echo
+    log_info "Manual verification recommended for:"
+    echo "  • Android API levels: https://developer.android.com/studio/releases/platforms"
+    echo "  • Command Line Tools: https://developer.android.com/studio#cmdline-tools"
+    echo "  • Build Tools: https://developer.android.com/studio/releases/build-tools"
+}
+
+# Main command processing
+case "${1:-show}" in
+    "show")
+        print_versions
+        ;;
+    "list")
+        list_versions
+        ;;
+    "get")
+        if [[ -n "$2" ]]; then
+            version=$(get_version "$2")
+            if [[ -n "$version" ]]; then
+                echo "$version"
+            else
+                echo "Error: Version key '$2' not found" >&2
+                echo "Available keys: ${!VERSIONS[*]}" >&2
+                exit 1
+            fi
+        else
+            echo "Error: Missing version key" >&2
+            echo "Usage: $0 get <KEY>" >&2
+            echo "Available keys: ${!VERSIONS[*]}" >&2
+            exit 1
+        fi
+        ;;
+    "set")
+        if [[ -n "$2" && -n "$3" ]]; then
+            if set_version "$2" "$3"; then
+                update_metadata "manual"
+                log_success "Updated $2=$3"
+            else
+                log_error "Failed to update version"
+                exit 1
+            fi
+        else
+            echo "Error: Missing arguments" >&2
+            echo "Usage: $0 set <KEY> <VALUE>" >&2
+            echo "Available keys: ${!VERSIONS[*]}" >&2
+            exit 1
+        fi
+        ;;
+    "export")
+        export_versions
+        log_success "Versions exported as environment variables"
+        ;;
+    "reload")
+        if load_versions; then
+            log_success "Versions reloaded from VERSIONS file"
+        else
+            log_error "Failed to reload versions"
+            exit 1
+        fi
+        ;;
+    "update")
+        auto_yes="false"
+        if [[ "$2" == "--yes" || "$2" == "-y" ]]; then
+            auto_yes="true"
+        fi
+        check_and_update_versions "$auto_yes"
+        ;;
+    "help"|"-h"|"--help")
+        show_usage
+        ;;
+    *)
+        echo "Error: Unknown command '$1'" >&2
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac

@@ -1,0 +1,19 @@
+# Version configuration file for Flutter Android/iOS Development Installation Scripts
+# Format: KEY=VALUE
+# This file is updated by the update_versions script
+
+FLUTTER=3.35.1
+ANDROID_API=34
+BUILD_TOOLS=34.0.0
+CMDLINE_TOOLS=11076708
+JAVA=17
+COCOAPODS=latest
+
+# Metadata
+LAST_UPDATED=2024-01-01 00:00:00 UTC
+UPDATED_BY=manual
+
+# Version check URLs
+FLUTTER_RELEASES_URL=https://api.github.com/repos/flutter/flutter/releases
+ANDROID_API_VERSIONS_URL=https://developer.android.com/studio/releases/platforms
+CMDLINE_TOOLS_DOWNLOAD_URL=https://developer.android.com/studio#cmdline-tools

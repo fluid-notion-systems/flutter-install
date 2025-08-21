@@ -11,10 +11,10 @@ set -e  # Exit on any error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source common functions
-if [[ -f "$SCRIPT_DIR/install_common.sh" ]]; then
-    source "$SCRIPT_DIR/install_common.sh"
+if [[ -f "$SCRIPT_DIR/common.sh" ]]; then
+    source "$SCRIPT_DIR/common.sh"
 else
-    echo "Error: install_common.sh not found in $SCRIPT_DIR"
+    echo "Error: common.sh not found in $SCRIPT_DIR"
     exit 1
 fi
 
@@ -32,8 +32,8 @@ else
     log_info "Using default Flutter version: $FLUTTER_VERSION"
 fi
 
-FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_${FLUTTER_VERSION}-stable.zip"
-CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip"
+FLUTTER_URL=$(get_flutter_url "$FLUTTER_VERSION")
+CMDLINE_TOOLS_URL=$(get_cmdline_tools_url)
 
 # Check and set base directory
 if [[ -n "$ANDROID_FLUTTER_HOME" ]]; then
@@ -169,7 +169,7 @@ export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform
 print_section "Installing Android SDK Components"
 log_step "Installing Android SDK components..."
 yes | sdkmanager --licenses >/dev/null 2>&1 || true
-sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+sdkmanager $(get_android_sdk_components)
 log_success "Android SDK components installed"
 
 # Check for Xcode installation
@@ -227,7 +227,7 @@ echo "  1. Restart your terminal or run: source $(get_shell_config)"
 echo "  2. Run: flutter doctor"
 echo "  3. Create your first app: flutter create my_app"
 echo "  4. For Android emulator support, run:"
-echo "     sdkmanager \"emulator\" \"system-images;android-34;google_apis;x86_64\""
+echo "     sdkmanager \"emulator\" \"system-images;android-${ANDROID_API_LEVEL};google_apis;x86_64\""
 echo "  5. For iOS development, ensure you have an Apple Developer account"
 
 # Additional iOS-specific recommendations
