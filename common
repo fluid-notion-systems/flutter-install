@@ -10,12 +10,8 @@ VERSIONS_FILE="$COMMON_SCRIPT_DIR/VARS"
 # Associative array to store versions
 declare -A VERSIONS
 
-# Function to load versions from VERSIONS file
+# Function to load versions from VARS file
 load_versions() {
-    if [[ ! -f "$VERSIONS_FILE" ]]; then
-        echo "Error: VARS file not found at $VERSIONS_FILE" >&2
-        return 1
-    fi
 
     # Clear existing versions
     VERSIONS=()
@@ -46,10 +42,7 @@ set_version() {
     local key="$1"
     local value="$2"
 
-    if [[ ! -f "$VERSIONS_FILE" ]]; then
-        echo "Error: VARS file not found at $VERSIONS_FILE" >&2
-        return 1
-    fi
+
 
     # Update in memory
     VERSIONS["$key"]="$value"
@@ -97,23 +90,13 @@ update_metadata() {
 # Load versions when this script is sourced
 load_versions
 
-# Set backwards compatibility variables if VARS loaded successfully
-if [[ ${#VERSIONS[@]} -gt 0 ]]; then
-    DEFAULT_FLUTTER_VERSION="${VERSIONS[FLUTTER]}"
-    ANDROID_API_LEVEL="${VERSIONS[ANDROID_API]}"
-    BUILD_TOOLS_VERSION="${VERSIONS[BUILD_TOOLS]}"
-    CMDLINE_TOOLS_VERSION="${VERSIONS[CMDLINE_TOOLS]}"
-    JAVA_VERSION="${VERSIONS[JAVA]}"
-    COCOAPODS_VERSION="${VERSIONS[COCOAPODS]}"
-else
-    # Fallback versions if VARS file doesn't exist or failed to load
-    DEFAULT_FLUTTER_VERSION="3.35.1"
-    ANDROID_API_LEVEL="34"
-    BUILD_TOOLS_VERSION="34.0.0"
-    CMDLINE_TOOLS_VERSION="11076708"
-    JAVA_VERSION="17"
-    COCOAPODS_VERSION="latest"
-fi
+# Set backwards compatibility variables from VARS
+DEFAULT_FLUTTER_VERSION="${VERSIONS[FLUTTER]}"
+ANDROID_API_LEVEL="${VERSIONS[ANDROID_API]}"
+BUILD_TOOLS_VERSION="${VERSIONS[BUILD_TOOLS]}"
+CMDLINE_TOOLS_VERSION="${VERSIONS[CMDLINE_TOOLS]}"
+JAVA_VERSION="${VERSIONS[JAVA]}"
+COCOAPODS_VERSION="${VERSIONS[COCOAPODS]}"
 
 # Base URLs for downloads
 FLUTTER_BASE_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable"

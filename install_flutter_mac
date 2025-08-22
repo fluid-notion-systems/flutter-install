@@ -22,7 +22,7 @@
 
 set -e  # Exit on any error
 
-# Check for bash version 4+ (required for associative arrays in common.sh)
+# Check for bash version 4+ (required for associative arrays in common)
 if [[ ${BASH_VERSION%%.*} -lt 4 ]]; then
     echo "Error: Bash 4.0 or higher is required" >&2
     echo "Current version: $BASH_VERSION" >&2
@@ -108,7 +108,7 @@ if [[ -n "$FLUTTER_VERSION" ]]; then
     log_info "Using specified Flutter version: $FLUTTER_VERSION"
 else
     FLUTTER_VERSION="$DEFAULT_FLUTTER_VERSION"
-    log_info "Using default Flutter version: $FLUTTER_VERSION"
+    log_info "Using Flutter version from VARS: $FLUTTER_VERSION"
 fi
 
 FLUTTER_URL=$(get_flutter_url "$FLUTTER_VERSION")

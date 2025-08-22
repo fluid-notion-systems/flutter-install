@@ -207,20 +207,17 @@ install_homebrew
 # Setup shell configuration
 setup_shell_config
 
-# Load Java version from VARS file if available
-JAVA_VERSION="17"  # Default
-if [[ -f "$SCRIPT_DIR/VARS" ]]; then
-    while IFS='=' read -r key value; do
-        [[ "$key" =~ ^[[:space:]]*# ]] && continue
-        [[ -z "$key" ]] && continue
-        key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [[ "$key" == "JAVA" ]]; then
-            JAVA_VERSION="$value"
-            break
-        fi
-    done < "$SCRIPT_DIR/VARS"
-fi
+# Load Java version from VARS file
+while IFS='=' read -r key value; do
+    [[ "$key" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$key" ]] && continue
+    key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    if [[ "$key" == "JAVA" ]]; then
+        JAVA_VERSION="$value"
+        break
+    fi
+done < "$SCRIPT_DIR/VARS"
 
 # Add Java to development tools with correct version
 DEVELOPMENT_TOOLS+=("openjdk@$JAVA_VERSION")
