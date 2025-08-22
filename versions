@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Version management CLI script for Flutter Android/iOS Development Installation
 # This script provides a command-line interface to manage the VERSIONS file

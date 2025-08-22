@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Homebrew Setup Script for macOS Development
 # Installs Homebrew and essential development tools

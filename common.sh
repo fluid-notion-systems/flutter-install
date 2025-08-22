@@ -1,9 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Common functions and version management for Flutter Android/iOS Development Installation Scripts
 # This file should be sourced by other installation scripts
-
-
 
 # Get the directory where this script is located
 COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

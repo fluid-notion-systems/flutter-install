@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Flutter Android & iOS Development Installation Script for macOS
 # Usage: ./install_flutter_mac [OPTIONS]
