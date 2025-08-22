@@ -6,6 +6,7 @@
 # Options:
 #   --simulator    Install iOS Simulator and related development tools
 #   --cocoapods    Install CocoaPods for iOS dependency management
+#   --xcodes       Install Xcode using xcodes tool (bypasses App Store)
 #   --help, -h     Show this help message
 #
 # Environment Variables:
@@ -16,7 +17,8 @@
 #   ./install_flutter_mac                    # Basic Flutter + Android setup
 #   ./install_flutter_mac --simulator        # Include iOS Simulator setup
 #   ./install_flutter_mac --cocoapods        # Include CocoaPods installation
-#   FLUTTER_VERSION=3.19.6 ./install_flutter_mac --simulator --cocoapods
+#   ./install_flutter_mac --xcodes           # Install Xcode via xcodes tool
+#   FLUTTER_VERSION=3.19.6 ./install_flutter_mac --simulator --cocoapods --xcodes
 
 set -e  # Exit on any error
 
@@ -52,6 +54,7 @@ show_help() {
     echo "Options:"
     echo "  --simulator    Install iOS Simulator and related development tools"
     echo "  --cocoapods    Install CocoaPods for iOS dependency management"
+    echo "  --xcodes       Install Xcode using xcodes tool (bypasses App Store)"
     echo "  --help, -h     Show this help message"
     echo
     echo "Environment Variables:"
@@ -62,7 +65,8 @@ show_help() {
     echo "  $0                    # Basic Flutter + Android setup"
     echo "  $0 --simulator        # Include iOS Simulator setup"
     echo "  $0 --cocoapods        # Include CocoaPods installation"
-    echo "  FLUTTER_VERSION=3.19.6 $0 --simulator --cocoapods"
+    echo "  $0 --xcodes           # Install Xcode via xcodes tool"
+    echo "  FLUTTER_VERSION=3.19.6 $0 --simulator --cocoapods --xcodes"
     echo
     exit 0
 }
@@ -70,6 +74,7 @@ show_help() {
 # Parse command line arguments
 INSTALL_SIMULATOR=false
 INSTALL_COCOAPODS=false
+INSTALL_XCODES=false
 for arg in "$@"; do
     case $arg in
         --simulator)
@@ -78,6 +83,10 @@ for arg in "$@"; do
             ;;
         --cocoapods)
             INSTALL_COCOAPODS=true
+            shift
+            ;;
+        --xcodes)
+            INSTALL_XCODES=true
             shift
             ;;
         --help|-h)
@@ -233,13 +242,43 @@ yes | sdkmanager --licenses >/dev/null 2>&1 || true
 sdkmanager $(get_android_sdk_components)
 log_success "Android SDK components installed"
 
+# Install Xcode if requested
+if [[ "$INSTALL_XCODES" == true ]]; then
+    print_section "Installing Xcode via xcodes"
+
+    # Check if xcodes is installed
+    if ! command_exists xcodes; then
+        log_step "Installing xcodes tool..."
+        brew install xcodesorg/made/xcodes
+        log_success "xcodes installed"
+    fi
+
+    # Check if Xcode is already installed
+    if [[ -d "/Applications/Xcode.app" ]]; then
+        log_info "Xcode already installed, checking version..."
+        xcodes installed
+    else
+        log_step "Installing latest Xcode (this may take a while)..."
+        log_info "Note: This requires an Apple ID and may prompt for login"
+        if xcodes install --latest; then
+            log_success "Xcode installed successfully"
+        else
+            log_error "Failed to install Xcode via xcodes"
+            MANUAL_ACTIONS+=("Install Xcode manually from App Store or developer.apple.com")
+        fi
+    fi
+fi
+
 # Check for Xcode installation
 print_section "Checking Xcode Installation"
 if [[ -d "/Applications/Xcode.app" ]]; then
     log_success "Xcode is installed"
 
-    # Check Xcode license
-    if ! /usr/bin/xcrun simctl list >/dev/null 2>&1; then
+    # Accept Xcode license and run first launch
+    log_step "Accepting Xcode license and running first launch..."
+    if sudo xcodebuild -license accept 2>/dev/null && sudo xcodebuild -runFirstLaunch 2>/dev/null; then
+        log_success "Xcode license accepted and first launch completed"
+    else
         log_warning "Xcode license may not be accepted"
         MANUAL_ACTIONS+=("Open Xcode and accept the license agreement")
     fi
@@ -279,10 +318,12 @@ if [[ -d "/Applications/Xcode.app" ]]; then
     fi
 else
     log_warning "Xcode is not installed"
-    if [[ "$INSTALL_SIMULATOR" == true ]]; then
-        MANUAL_ACTIONS+=("Install Xcode from the App Store (required for iOS Simulator)")
-    else
-        MANUAL_ACTIONS+=("Install Xcode from the App Store (required for iOS development)")
+    if [[ "$INSTALL_XCODES" != true ]]; then
+        if [[ "$INSTALL_SIMULATOR" == true ]]; then
+            MANUAL_ACTIONS+=("Install Xcode from App Store or run with --xcodes flag (required for iOS Simulator)")
+        else
+            MANUAL_ACTIONS+=("Install Xcode from App Store or run with --xcodes flag (required for iOS development)")
+        fi
     fi
 fi
 
@@ -327,6 +368,10 @@ fi
 
 if [[ "$INSTALL_COCOAPODS" != true ]]; then
     echo "  7. Re-run with --cocoapods flag to install CocoaPods for iOS dependencies"
+fi
+
+if [[ "$INSTALL_XCODES" != true && ! -d "/Applications/Xcode.app" ]]; then
+    echo "  8. Re-run with --xcodes flag to install Xcode automatically"
 fi
 
 # Additional iOS-specific recommendations
