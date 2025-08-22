@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Version management CLI script for Flutter Android/iOS Development Installation
-# This script provides a command-line interface to manage the VERSIONS file
+# This script provides a command-line interface to manage the VARS file
 
-# Check for bash version 4+ (required for associative arrays in common.sh)
+# Check for bash version 4+ (required for associative arrays in common)
 if [[ ${BASH_VERSION%%.*} -lt 4 ]]; then
     echo "Error: Bash 4.0 or higher is required" >&2
     echo "Current version: $BASH_VERSION" >&2
@@ -16,10 +16,10 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source common functions
-if [[ -f "$SCRIPT_DIR/common.sh" ]]; then
-    source "$SCRIPT_DIR/common.sh"
+if [[ -f "$SCRIPT_DIR/common" ]]; then
+    source "$SCRIPT_DIR/common"
 else
-    echo "Error: common.sh not found in $SCRIPT_DIR"
+    echo "Error: common not found in $SCRIPT_DIR"
     exit 1
 fi
 
@@ -108,7 +108,7 @@ update_versions_file() {
     local new_build_tools_version="$3"
     local new_cmdline_tools_version="$4"
 
-    log_info "Updating VERSIONS file..."
+    log_info "Updating VARS file..."
 
     cat > "$VERSIONS_FILE" << EOF
 # Version configuration file for Flutter Android/iOS Development Installation Scripts
@@ -132,7 +132,7 @@ ANDROID_API_VERSIONS_URL=https://developer.android.com/studio/releases/platforms
 CMDLINE_TOOLS_DOWNLOAD_URL=https://developer.android.com/studio#cmdline-tools
 EOF
 
-    log_success "Updated VERSIONS file"
+    log_success "Updated VARS file"
 }
 
 # Function to compare versions
@@ -231,7 +231,7 @@ check_and_update_versions() {
             load_versions
             print_versions
         else
-            log_info "No changes made to VERSIONS file"
+            log_info "No changes made to VARS file"
         fi
     else
         log_success "All versions are up to date!"
@@ -291,7 +291,7 @@ case "${1:-show}" in
         ;;
     "reload")
         if load_versions; then
-            log_success "Versions reloaded from VERSIONS file"
+            log_success "Versions reloaded from VARS file"
         else
             log_error "Failed to reload versions"
             exit 1
